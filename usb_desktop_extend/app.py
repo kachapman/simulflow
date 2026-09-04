@@ -1,14 +1,18 @@
 """Main application window with system tray integration."""
 
+import io
 import json
 import logging
 from datetime import datetime
 from pathlib import Path
 
+import qrcode
 from PyQt6.QtCore import Qt, pyqtSlot
-from PyQt6.QtGui import QCursor, QIcon
+from PyQt6.QtGui import QCursor, QIcon, QImage, QPixmap
 from PyQt6.QtWidgets import (
     QApplication,
+    QButtonGroup,
+    QDialog,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -17,6 +21,7 @@ from PyQt6.QtWidgets import (
     QMenu,
     QMessageBox,
     QPushButton,
+    QRadioButton,
     QSizePolicy,
     QSystemTrayIcon,
     QTextEdit,
@@ -24,7 +29,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from .backend import ConnectionManager
+from .backend import ConnectionManager, WirelessInfo
 from .log_handler import LogEmitter, QtLogHandler
 
 logger = logging.getLogger(__name__)
@@ -35,24 +40,24 @@ CONFIG_FILE = CONFIG_DIR / "config.json"
 
 # ── Terminal Theme Colors ──────────────────────────────────────────
 C = {
-    "bg":           "#0a0a0a",
-    "panel":        "#0f0f0f",
-    "border":       "#1a5a1a",
-    "border_dim":   "#0d2e0d",
-    "green":        "#33ff33",
-    "green_dim":    "#1a8a1a",
-    "green_darker": "#0d4a0d",
-    "amber":        "#ffaa00",
-    "red":          "#ff3333",
-    "gray":         "#333333",
-    "text":         "#33ff33",
-    "text_dim":     "#1a8a1a",
-    "text_muted":   "#0d4a0d",
+    "bg":           "#111111",
+    "panel":        "#161616",
+    "border":       "#1a4a1a",
+    "border_dim":   "#1c351c",
+    "green":        "#2ecc40",
+    "green_dim":    "#1a7a1a",
+    "green_darker": "#123a12",
+    "amber":        "#d99000",
+    "red":          "#cc3340",
+    "gray":         "#3a3a3a",
+    "text":         "#2ecc40",
+    "text_dim":     "#1a7a1a",
+    "text_muted":   "#2a4a2a",
     "black":        "#000000",
-    "input_bg":     "#0a0a0a",
-    "btn_bg":       "#1a5a1a",
-    "btn_hover":    "#33ff33",
-    "btn_disabled": "#0d2e0d",
+    "input_bg":     "#111111",
+    "btn_bg":       "#1a4a1a",
+    "btn_hover":    "#2ecc40",
+    "btn_disabled": "#152215",
 }
 
 # ── Stylesheet ─────────────────────────────────────────────────────
@@ -136,6 +141,32 @@ QPushButton:disabled {{
     border-color: {C['border_dim']};
 }}
 
+/* ── Radio Buttons (Mode Selector) ── */
+QRadioButton {{
+    color: {C['text']};
+    background-color: {C['bg']};
+    border: 1px solid {C['border_dim']};
+    border-radius: 3px;
+    padding: 8px 14px;
+    font-weight: bold;
+}}
+QRadioButton:hover {{
+    border-color: {C['green_dim']};
+}}
+QRadioButton:checked {{
+    background-color: {C['green_darker']};
+    border-color: {C['green_dim']};
+    color: {C['green']};
+}}
+QRadioButton:unchecked {{
+    background-color: {C['bg']};
+    color: {C['text_dim']};
+}}
+QRadioButton:disabled {{
+    color: {C['text_muted']};
+    border-color: {C['border_dim']};
+}}
+
 /* ── Log Area ── */
 QTextEdit {{
     background-color: {C['black']};
@@ -202,6 +233,25 @@ STATUS_COLORS = {
     "connecting": C["amber"],
     "on": C["green"],
 }
+
+
+def qr_to_pixmap(qr_data: str, box_size: int = 6, border: int = 2) -> QPixmap:
+    """Render an ADB pairing QR string to a QPixmap."""
+    qr = qrcode.QRCode(
+        version=None,
+        error_correction=qrcode.constants.ERROR_CORRECT_L,
+        box_size=box_size,
+        border=border,
+    )
+    qr.add_data(qr_data)
+    qr.make(fit=True)
+    image = qr.make_image(fill_color="black", back_color="white")
+    buffer = io.BytesIO()
+    image.save(buffer, format="PNG")
+    buffer.seek(0)
+    pixmap = QPixmap()
+    pixmap.loadFromData(buffer.read())
+    return pixmap
 
 
 def load_credentials() -> tuple[str, str]:
@@ -273,6 +323,8 @@ class MainWindow(QMainWindow):
         self.sudo_password = sudo_password
         self._manager: ConnectionManager | None = None
         self._connected = False
+        self._qr_dialog: QDialog | None = None
+        self._qr_label: QLabel | None = None
 
         self.setStyleSheet(STYLESHEET)
         self._setup_ui()
@@ -281,7 +333,8 @@ class MainWindow(QMainWindow):
 
     def _setup_ui(self):
         self.setWindowTitle("USB Desktop Extend")
-        self.setMinimumSize(540, 460)
+        self.setMinimumSize(540, 760)
+        self.resize(540, 760)
         self.setWindowIcon(self._get_icon())
 
         # Load saved credentials
@@ -301,6 +354,140 @@ class MainWindow(QMainWindow):
         header.addWidget(title)
         header.addStretch()
         layout.addLayout(header)
+
+        # ── Connection Mode ──
+        mode_frame = QFrame()
+        mode_layout = QVBoxLayout(mode_frame)
+        mode_layout.setSpacing(8)
+
+        mode_header = QHBoxLayout()
+        mode_title = QLabel("CONNECTION MODE")
+        mode_title.setProperty("class", "title")
+        mode_header.addWidget(mode_title)
+        mode_header.addWidget(InfoIcon(
+            "How the tablet connects to your laptop.\n\n"
+            "USB: physical cable, lowest latency, most stable.\n\n"
+            "Wireless: Android 11+ wireless debugging over Wi-Fi.\n"
+            "Convenient, but higher latency and more artifacts than USB."
+        ))
+        mode_header.addStretch()
+        mode_layout.addLayout(mode_header)
+
+        mode_row = QHBoxLayout()
+        mode_row.setSpacing(12)
+        self._usb_radio = QRadioButton("USB")
+        self._usb_radio.setChecked(True)
+        self._usb_radio.setFixedWidth(140)
+        self._wireless_radio = QRadioButton("Wireless")
+        self._wireless_radio.setFixedWidth(140)
+        self._mode_group = QButtonGroup(self)
+        self._mode_group.addButton(self._usb_radio)
+        self._mode_group.addButton(self._wireless_radio)
+        self._usb_radio.toggled.connect(self._on_mode_changed)
+        mode_row.addWidget(self._usb_radio)
+        mode_row.addWidget(self._wireless_radio)
+        mode_row.addStretch()
+        mode_layout.addLayout(mode_row)
+
+        # ── Wireless panel ──
+        self._wireless_panel = QFrame()
+        wl_layout = QVBoxLayout(self._wireless_panel)
+        wl_layout.setSpacing(8)
+
+        wl_header = QHBoxLayout()
+        wl_title = QLabel("WIRELESS (ANDROID 11+)")
+        wl_title.setProperty("class", "title")
+        wl_header.addWidget(wl_title)
+        wl_header.addWidget(InfoIcon(
+            "Click Start to generate a QR code. Expand 'Manual entry' only if\n"
+            "mDNS is blocked on your network.\n\n"
+            "Set up wireless debugging on your tablet:\n\n"
+            "1. Connect once via USB and enable Developer Options\n"
+            "   (Settings → About → tap 'Build number' 7 times).\n"
+            "2. Enable USB Debugging under Developer Options\n"
+            "   (needed the first time).\n"
+            "3. Go to Settings → Developer Options → Wireless debugging\n"
+            "   and turn it ON.\n"
+            "4. Tap 'Pair device with QR code' and scan the QR code\n"
+            "   shown by the app — no typing needed.\n\n"
+            "Leave the fields below empty and the app does everything\n"
+            "with the QR code. Pairing persists — you only pair once.\n\n"
+            "If pairing times out, reopen the pairing screen on the tablet\n"
+            "and try again."
+        ))
+        wl_header.addStretch()
+        wl_layout.addLayout(wl_header)
+
+        self._wl_hint = QLabel(
+            "Click Start to generate a QR code. Expand 'Manual entry' only if "
+            "mDNS is blocked on your network"
+        )
+        self._wl_hint.setWordWrap(True)
+        self._wl_hint.setStyleSheet(f"color: {C['text_dim']}; font-size: 12px;")
+        wl_layout.addWidget(self._wl_hint)
+
+        self._manual_toggle = QPushButton("\u25be\u2500  MANUAL ENTRY (OPTIONAL)")
+        self._manual_toggle.setStyleSheet("text-align: left;")
+        self._manual_toggle.setToolTip(
+            "Fallback only for networks where mDNS is blocked. Enter the\n"
+            "tablet's IP, pairing port + code, and connect port manually."
+        )
+        self._manual_toggle.clicked.connect(self._toggle_manual_entry)
+        wl_layout.addWidget(self._manual_toggle)
+
+        self._wl_manual_frame = QFrame()
+        self._wl_manual_frame.setStyleSheet(
+            f"QFrame {{ border: 1px solid {C['border_dim']}; background: transparent; }}"
+        )
+        wl_manual_layout = QVBoxLayout(self._wl_manual_frame)
+        wl_manual_layout.setSpacing(8)
+
+        wl_ip_row = QHBoxLayout()
+        wl_ip_label = QLabel("Tablet IP:")
+        wl_ip_label.setFixedWidth(80)
+        wl_ip_row.addWidget(wl_ip_label)
+        self._wl_ip_input = QLineEdit()
+        self._wl_ip_input.setPlaceholderText("e.g. 192.168.1.189")
+        wl_ip_row.addWidget(self._wl_ip_input)
+        wl_manual_layout.addLayout(wl_ip_row)
+
+        wl_pair_row = QHBoxLayout()
+        wl_pair_label = QLabel("Pair port:")
+        wl_pair_label.setFixedWidth(80)
+        wl_pair_row.addWidget(wl_pair_label)
+        self._wl_pair_port_input = QLineEdit()
+        self._wl_pair_port_input.setPlaceholderText("from 'Pair device' screen")
+        wl_pair_row.addWidget(self._wl_pair_port_input)
+        wl_pair_row.addStretch()
+        wl_manual_layout.addLayout(wl_pair_row)
+
+        wl_code_row = QHBoxLayout()
+        wl_code_label = QLabel("Pair code:")
+        wl_code_label.setFixedWidth(80)
+        wl_code_row.addWidget(wl_code_label)
+        self._wl_pair_code_input = QLineEdit()
+        self._wl_pair_code_input.setPlaceholderText("6-digit code")
+        self._wl_pair_code_input.setEchoMode(QLineEdit.EchoMode.Password)
+        wl_code_row.addWidget(self._wl_pair_code_input)
+        wl_code_row.addStretch()
+        wl_manual_layout.addLayout(wl_code_row)
+
+        wl_conn_row = QHBoxLayout()
+        wl_conn_label = QLabel("Connect port:")
+        wl_conn_label.setFixedWidth(80)
+        wl_conn_row.addWidget(wl_conn_label)
+        self._wl_connect_port_input = QLineEdit()
+        self._wl_connect_port_input.setPlaceholderText("from Wireless debugging main screen")
+        wl_conn_row.addWidget(self._wl_connect_port_input)
+        wl_conn_row.addStretch()
+        wl_manual_layout.addLayout(wl_conn_row)
+
+        self._wl_manual_frame.setVisible(False)
+        wl_layout.addWidget(self._wl_manual_frame)
+
+        self._wireless_panel.setVisible(False)
+        mode_layout.addWidget(self._wireless_panel)
+        layout.addWidget(mode_frame)
 
         # ── Credentials ──
         creds_frame = QFrame()
@@ -346,9 +533,11 @@ class MainWindow(QMainWindow):
 
         self._adb_indicator = StatusIndicator(
             "ADB",
-            "Android Debug Bridge — detects your tablet via USB.\n"
+            "Android Debug Bridge — detects your tablet via USB\n"
+            "or wireless debugging.\n"
             "Enable USB Debugging in:\n"
-            "  Settings → Developer Options → USB Debugging"
+            "  Settings → Developer Options → USB Debugging\n"
+            "For wireless: Developer Options → Wireless debugging."
         )
         self._rdp_indicator = StatusIndicator(
             "RDP",
@@ -358,7 +547,8 @@ class MainWindow(QMainWindow):
         self._tunnel_indicator = StatusIndicator(
             "Tunnel",
             "ADB reverse tunnel — routes tablet's RDP client\n"
-            "to your laptop over USB (bypasses Android firewall)."
+            "to your laptop over USB or wireless\n"
+            "(bypasses Android firewall)."
         )
 
         status_layout.addWidget(self._adb_indicator)
@@ -474,16 +664,22 @@ class MainWindow(QMainWindow):
         self._tunnel_indicator.set_status(tunnel_status)
 
         if tunnel_status == "on":
+            suffix = " (wireless)" if self._current_mode() == "wireless" else ""
             self._tray.setToolTip("USB Desktop Extend — Connected")
-            self._footer.setText("Tunnel Connected. Connect with your RDP app on the tablet.")
+            self._footer.setText(f"Tunnel Connected{suffix}. Connect with your RDP app on the tablet.")
             self._footer.setStyleSheet(f"color: {C['green']}; font-size: 11px; padding: 4px 0;")
+            self._close_qr_dialog()
         else:
             self._tray.setToolTip("USB Desktop Extend")
 
     @pyqtSlot(bool)
     def _on_finished(self, success: bool):
+        sender = self.sender()
+        if sender is not None and sender is not self._manager:
+            return
         self._connected = success
         self._set_buttons_enabled(connected=success)
+        self._close_qr_dialog()
 
         if success:
             self._tray.showMessage(
@@ -520,9 +716,121 @@ class MainWindow(QMainWindow):
         self._disconnect_btn.setEnabled(connected)
         self._username_input.setEnabled(not connected)
         self._password_input.setEnabled(not connected)
+        self._usb_radio.setEnabled(not connected)
+        self._wireless_radio.setEnabled(not connected)
+        self._wl_ip_input.setEnabled(not connected)
+        self._wl_pair_port_input.setEnabled(not connected)
+        self._wl_pair_code_input.setEnabled(not connected)
+        self._wl_connect_port_input.setEnabled(not connected)
+        self._manual_toggle.setEnabled(not connected)
+
+    def _toggle_manual_entry(self):
+        visible = not self._wl_manual_frame.isVisible()
+        self._wl_manual_frame.setVisible(visible)
+        self._manual_toggle.setText(
+            "\u25b4\u2500  HIDE MANUAL ENTRY" if visible else "\u25be\u2500  MANUAL ENTRY (OPTIONAL)"
+        )
+
+    @pyqtSlot(str, str)
+    def _on_qr_data_ready(self, qr_text: str, service_name: str):
+        self._ensure_qr_dialog()
+        pixmap = qr_to_pixmap(qr_text, box_size=8, border=4)
+        scaled = pixmap.scaled(
+            300, 300,
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
+        )
+        self._qr_label.setPixmap(scaled)
+        self._qr_dialog.adjustSize()
+        self._qr_dialog.show()
+        self._qr_dialog.raise_()
+        self._qr_dialog.activateWindow()
+
+    def _ensure_qr_dialog(self):
+        if self._qr_dialog is not None:
+            return
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("USB Desktop Extend — Scan to Pair")
+        dialog.setStyleSheet(STYLESHEET)
+        v = QVBoxLayout(dialog)
+        v.setSpacing(12)
+        v.setContentsMargins(20, 20, 20, 20)
+
+        title = QLabel("SCAN THIS CODE ON YOUR TABLET")
+        title.setProperty("class", "title")
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        v.addWidget(title)
+
+        self._qr_label = QLabel()
+        self._qr_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        v.addWidget(self._qr_label)
+
+        steps = QLabel(
+            "1. Settings → Developer Options → Wireless debugging\n"
+            "2. Tap \"Pair device with QR code\"\n"
+            "3. Point the camera at this code\n\n"
+            "The app pairs and connects automatically."
+        )
+        steps.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        steps.setStyleSheet(f"color: {C['text_dim']}; font-size: 11px;")
+        v.addWidget(steps)
+
+        close_btn = QPushButton("CLOSE")
+        close_btn.setFixedWidth(140)
+        close_btn.clicked.connect(self._close_qr_dialog)
+        v.addWidget(close_btn, alignment=Qt.AlignmentFlag.AlignCenter)
+
+        self._qr_dialog = dialog
+
+    def _close_qr_dialog(self):
+        if self._qr_dialog is not None:
+            self._qr_dialog.close()
+
+    def _on_mode_changed(self):
+        if self._manager and self._manager.isRunning():
+            self._manager.request_stop()
+        self._close_qr_dialog()
+        wireless = self._wireless_radio.isChecked()
+        self._wireless_panel.setVisible(wireless)
+        if wireless:
+            self._footer.setText("Wireless mode: click Start to generate a QR code to pair.")
+            self._footer.setStyleSheet(f"color: {C['amber']}; font-size: 11px; padding: 4px 0;")
+        else:
+            self._footer.setText("Ready. Plug in tablet and click Start.")
+            self._footer.setStyleSheet(f"color: {C['text_dim']}; font-size: 11px; padding: 4px 0;")
+
+    def _current_mode(self) -> str:
+        return "wireless" if self._wireless_radio.isChecked() else "usb"
+
+    def _wireless_info(self) -> WirelessInfo:
+        return WirelessInfo(
+            ip=self._wl_ip_input.text().strip(),
+            pair_port=self._wl_pair_port_input.text().strip(),
+            pair_code=self._wl_pair_code_input.text(),
+            connect_port=self._wl_connect_port_input.text().strip(),
+        )
+
+    def _gnome_major(self) -> int | None:
+        import subprocess
+
+        for cmd in (["gnome-shell", "--version"], ["mutter", "--version"]):
+            try:
+                result = subprocess.run(
+                    cmd, capture_output=True, text=True, timeout=5,
+                )
+                for token in result.stdout.strip().replace(",", " ").split():
+                    parts = token.split(".")
+                    if len(parts) >= 2 and parts[0].isdigit():
+                        return int(parts[0])
+            except (subprocess.TimeoutExpired, FileNotFoundError):
+                continue
+        return None
 
     def _on_connect(self):
         if self._manager and self._manager.isRunning():
+            self._footer.setText("A connection is already in progress. Stop it first.")
+            self._footer.setStyleSheet(f"color: {C['amber']}; font-size: 11px; padding: 4px 0;")
             return
 
         username = self._username_input.text().strip()
@@ -545,11 +853,19 @@ class MainWindow(QMainWindow):
         self._footer.setText("Connecting...")
         self._footer.setStyleSheet(f"color: {C['amber']}; font-size: 11px; padding: 4px 0;")
 
-        self._manager = ConnectionManager(username, password, self.sudo_password)
+        if (major := self._gnome_major()) is not None and major >= 49:
+            self._footer.setText("GNOME 49: use aRDP/Remmina on the tablet - Windows App won't connect.")
+            self._footer.setStyleSheet(f"color: {C['amber']}; font-size: 11px; padding: 4px 0;")
+
+        self._manager = ConnectionManager(
+            username, password, self.sudo_password,
+            mode=self._current_mode(), wireless=self._wireless_info(),
+        )
         self._manager.log_message.connect(self._on_backend_log)
         self._manager.status_changed.connect(self._on_status_changed)
         self._manager.finished.connect(self._on_finished)
         self._manager.connection_lost.connect(self._on_connection_lost)
+        self._manager.qr_data_ready.connect(self._on_qr_data_ready)
         self._manager.start()
 
     def _on_disconnect(self):
@@ -560,6 +876,7 @@ class MainWindow(QMainWindow):
             self._username_input.text(),
             self._password_input.text(),
             self.sudo_password,
+            mode=self._current_mode(), wireless=self._wireless_info(),
         )
         self._disconnect_thread.log_message.connect(self._on_backend_log)
         self._disconnect_thread.status_changed.connect(self._on_status_changed)
@@ -572,6 +889,7 @@ class MainWindow(QMainWindow):
         self._set_buttons_enabled(connected=False)
 
     def _on_disconnect_finished(self, success: bool):
+        self._close_qr_dialog()
         self._footer.setText("Disconnected.")
         self._footer.setStyleSheet(f"color: {C['text_dim']}; font-size: 11px; padding: 4px 0;")
         self._tray.showMessage(

@@ -1,1 +1,4 @@
 PyQt6>=6.5.0
+qrcode>=7.4
+Pillow>=10.0.0
+zeroconf>=0.132

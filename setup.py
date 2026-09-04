@@ -8,7 +8,7 @@ long_description = (here / "README.md").read_text(encoding="utf-8")
 
 setup(
     name="usb-desktop-extend",
-    version="0.1.0",
+    version="1.1.0",
     description="Turn your Android tablet into a second monitor over USB",
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -18,6 +18,9 @@ setup(
     packages=find_packages(),
     install_requires=[
         "PyQt6>=6.5.0",
+        "qrcode>=7.4",
+        "Pillow>=10.0.0",
+        "zeroconf>=0.132",
     ],
     entry_points={
         "console_scripts": [
