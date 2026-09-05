@@ -7,8 +7,9 @@ from datetime import datetime
 from pathlib import Path
 
 import qrcode
-from PyQt6.QtCore import Qt, pyqtSlot
-from PyQt6.QtGui import QCursor, QIcon, QImage, QPixmap
+from PyQt6.QtCore import QByteArray, QRectF, QSize, Qt, pyqtSlot
+from PyQt6.QtGui import QIcon, QImage, QPainter, QPixmap, QCursor
+from PyQt6.QtSvg import QSvgRenderer
 from PyQt6.QtWidgets import (
     QApplication,
     QButtonGroup,
@@ -35,7 +36,7 @@ from .log_handler import LogEmitter, QtLogHandler
 logger = logging.getLogger(__name__)
 
 ASSETS_DIR = Path(__file__).parent.parent / "assets"
-CONFIG_DIR = Path.home() / ".config" / "usb-desktop-extend"
+CONFIG_DIR = Path.home() / ".config" / "simulflow"
 CONFIG_FILE = CONFIG_DIR / "config.json"
 
 # ── Terminal Theme Colors ──────────────────────────────────────────
@@ -255,7 +256,8 @@ def qr_to_pixmap(qr_data: str, box_size: int = 6, border: int = 2) -> QPixmap:
 
 
 def load_credentials() -> tuple[str, str]:
-    """Load saved credentials from config file."""
+    """Load saved credentials from config file, migrating the legacy path."""
+    _migrate_legacy_config()
     if CONFIG_FILE.exists():
         try:
             data = json.loads(CONFIG_FILE.read_text())
@@ -263,6 +265,19 @@ def load_credentials() -> tuple[str, str]:
         except (json.JSONDecodeError, KeyError):
             pass
     return "", ""
+
+
+def _migrate_legacy_config():
+    """Copy credentials from the old ~/.config/usb-desktop-extend config if present."""
+    try:
+        legacy_dir = Path.home() / ".config" / "usb-desktop-extend"
+        legacy_file = legacy_dir / "config.json"
+        if not CONFIG_FILE.exists() and legacy_file.exists():
+            CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+            import shutil
+            shutil.copyfile(legacy_file, CONFIG_FILE)
+    except (OSError, shutil.SameFileError):
+        pass
 
 
 def save_credentials(username: str, password: str):
@@ -315,6 +330,32 @@ class StatusIndicator(QWidget):
         )
 
 
+_EYE_ICON_SVG = """<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+    <path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" />
+    <path d="M21 12c-2.4 4 -5.4 6 -9 6c-3.6 0 -6.6 -2 -9 -6c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6" />
+</svg>"""
+
+_EYE_OFF_ICON_SVG = """<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+    <path d="M10.585 10.587a2 2 0 0 0 2.829 2.828" />
+    <path d="M16.681 16.673a8.717 8.717 0 0 1 -4.681 1.327c-3.6 0 -6.6 -2 -9 -6c1.272 -2.12 2.712 -3.678 4.32 -4.674m2.86 -1.146a9.055 9.055 0 0 1 1.82 -.18c3.6 0 6.6 2 9 6c-.666 1.11 -1.379 2.067 -2.138 2.87" />
+    <path d="M3 3l18 18" />
+</svg>"""
+
+
+def _svg_icon(svg: str, size: int) -> QIcon:
+    """Render a currentColor SVG stroke to a QIcon using the theme green."""
+    colored = svg.replace("currentColor", C["text"])
+    renderer = QSvgRenderer(QByteArray(colored.encode("utf-8")))
+    pixmap = QPixmap(size, size)
+    pixmap.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(pixmap)
+    renderer.render(painter, QRectF(0, 0, size, size))
+    painter.end()
+    return QIcon(pixmap)
+
+
 class MainWindow(QMainWindow):
     """Main application window."""
 
@@ -332,7 +373,7 @@ class MainWindow(QMainWindow):
         self._setup_logging()
 
     def _setup_ui(self):
-        self.setWindowTitle("USB Desktop Extend")
+        self.setWindowTitle("Simulflow")
         self.setMinimumSize(540, 760)
         self.resize(540, 760)
         self.setWindowIcon(self._get_icon())
@@ -348,10 +389,16 @@ class MainWindow(QMainWindow):
 
         # ── Header ──
         header = QHBoxLayout()
-        title = QLabel("USB DESKTOP EXTEND")
+        header.setSpacing(10)
+        title = QLabel("SIMULFLOW")
         title.setProperty("class", "title")
         title.setStyleSheet(f"font-size: 15px; color: {C['green']}; letter-spacing: 2px;")
         header.addWidget(title)
+        tagline = QLabel("Linux Desktop Extender")
+        tagline.setStyleSheet(
+            f"font-size: 11px; color: {C['text_muted']}; letter-spacing: 1px;"
+        )
+        header.addWidget(tagline)
         header.addStretch()
         layout.addLayout(header)
 
@@ -501,7 +548,7 @@ class MainWindow(QMainWindow):
         creds_header.addWidget(InfoIcon(
             "RDP credentials used by the tablet to connect.\n"
             "Edit them here and click START CONNECTION to update.\n"
-            "Stored in ~/.config/usb-desktop-extend/config.json — you\n"
+            "Stored in ~/.config/simulflow/config.json — you\n"
             "can also open that file directly to change them."
         ))
         creds_header.addStretch()
@@ -524,9 +571,15 @@ class MainWindow(QMainWindow):
         self._password_input.setPlaceholderText("RDP password")
         self._password_input.setEchoMode(QLineEdit.EchoMode.Password)
         pass_row.addWidget(self._password_input)
-        self._pw_show_btn = QPushButton("SHOW")
-        self._pw_show_btn.setFixedWidth(56)
+        self._pw_show_btn = QPushButton()
+        self._pw_show_btn.setIcon(_svg_icon(_EYE_ICON_SVG, 20))
+        self._pw_show_btn.setIconSize(QSize(20, 20))
+        self._pw_show_btn.setFixedSize(36, 28)
         self._pw_show_btn.setToolTip("Reveal or hide the saved password")
+        self._pw_show_btn.setStyleSheet(
+            "QPushButton { border: 1px solid " + C["border"] + "; background: transparent; padding: 0; }"
+            "QPushButton:hover { border-color: " + C["green"] + "; }"
+        )
         self._pw_show_btn.clicked.connect(self._toggle_password_visibility)
         pass_row.addWidget(self._pw_show_btn)
         creds_layout.addLayout(pass_row)
@@ -616,7 +669,7 @@ class MainWindow(QMainWindow):
 
     def _setup_tray(self):
         self._tray = QSystemTrayIcon(self._get_icon(), self)
-        self._tray.setToolTip("USB Desktop Extend")
+        self._tray.setToolTip("Simulflow")
 
         menu = QMenu()
         menu.addAction("Show Window", self._show_window)
@@ -672,12 +725,12 @@ class MainWindow(QMainWindow):
 
         if tunnel_status == "on":
             suffix = " (wireless)" if self._current_mode() == "wireless" else ""
-            self._tray.setToolTip("USB Desktop Extend — Connected")
+            self._tray.setToolTip("Simulflow — Connected")
             self._footer.setText(f"Tunnel Connected{suffix}. Connect with your RDP app on the tablet.")
             self._footer.setStyleSheet(f"color: {C['green']}; font-size: 11px; padding: 4px 0;")
             self._close_qr_dialog()
         else:
-            self._tray.setToolTip("USB Desktop Extend")
+            self._tray.setToolTip("Simulflow")
 
     @pyqtSlot(bool)
     def _on_finished(self, success: bool):
@@ -690,14 +743,14 @@ class MainWindow(QMainWindow):
 
         if success:
             self._tray.showMessage(
-                "USB Desktop Extend",
+                "Simulflow",
                 "Connection established successfully!",
                 QSystemTrayIcon.MessageIcon.Information,
                 3000,
             )
         else:
             self._tray.showMessage(
-                "USB Desktop Extend",
+                "Simulflow",
                 "Connection failed. Check the log for details.",
                 QSystemTrayIcon.MessageIcon.Warning,
                 3000,
@@ -712,7 +765,7 @@ class MainWindow(QMainWindow):
         self._footer.setText(f"Connection lost: {reason}")
         self._footer.setStyleSheet(f"color: {C['red']}; font-size: 11px; padding: 4px 0;")
         self._tray.showMessage(
-            "USB Desktop Extend",
+            "Simulflow",
             f"Connection lost: {reason}",
             QSystemTrayIcon.MessageIcon.Warning,
             5000,
@@ -744,7 +797,9 @@ class MainWindow(QMainWindow):
         self._password_input.setEchoMode(
             QLineEdit.EchoMode.Normal if visible else QLineEdit.EchoMode.Password
         )
-        self._pw_show_btn.setText("HIDE" if visible else "SHOW")
+        self._pw_show_btn.setIcon(
+            _svg_icon(_EYE_OFF_ICON_SVG, 20) if visible else _svg_icon(_EYE_ICON_SVG, 20)
+        )
 
     @pyqtSlot(str, str)
     def _on_qr_data_ready(self, qr_text: str, service_name: str):
@@ -766,7 +821,7 @@ class MainWindow(QMainWindow):
             return
 
         dialog = QDialog(self)
-        dialog.setWindowTitle("USB Desktop Extend — Scan to Pair")
+        dialog.setWindowTitle("Simulflow — Scan to Pair")
         dialog.setStyleSheet(STYLESHEET)
         v = QVBoxLayout(dialog)
         v.setSpacing(12)
@@ -908,7 +963,7 @@ class MainWindow(QMainWindow):
         self._footer.setText("Disconnected.")
         self._footer.setStyleSheet(f"color: {C['text_dim']}; font-size: 11px; padding: 4px 0;")
         self._tray.showMessage(
-            "USB Desktop Extend",
+            "Simulflow",
             "Disconnected.",
             QSystemTrayIcon.MessageIcon.Information,
             2000,
@@ -948,7 +1003,7 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event):
         if self._connected:
             msg = QMessageBox(self)
-            msg.setWindowTitle("USB Desktop Extend")
+            msg.setWindowTitle("Simulflow")
             msg.setText("Connection is active.")
             msg.setInformativeText("What would you like to do?")
             msg.setIcon(QMessageBox.Icon.Question)
@@ -965,7 +1020,7 @@ class MainWindow(QMainWindow):
                 event.ignore()
                 self.hide()
                 self._tray.showMessage(
-                    "USB Desktop Extend",
+                    "Simulflow",
                     "Minimized to tray. Right-click to quit.",
                     QSystemTrayIcon.MessageIcon.Information,
                     2000,
@@ -976,7 +1031,7 @@ class MainWindow(QMainWindow):
             event.ignore()
             self.hide()
             self._tray.showMessage(
-                "USB Desktop Extend",
+                "Simulflow",
                 "Minimized to tray. Right-click to quit.",
                 QSystemTrayIcon.MessageIcon.Information,
                 2000,

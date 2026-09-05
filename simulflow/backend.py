@@ -120,7 +120,7 @@ class ConnectionManager(QThread):
     def run(self):
         """Execute the full connection sequence, then monitor."""
         try:
-            self._log("info", "=== Starting USB Desktop Extend Connection ===")
+            self._log("info", "=== Starting Simulflow Connection ===")
             self._connect()
             self._log("success", "=== Connection Established Successfully ===")
             self.finished.emit(True)

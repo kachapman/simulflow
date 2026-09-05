@@ -1,4 +1,4 @@
-"""Allow running as: python -m usb_desktop_extend"""
+"""Allow running as: python -m simulflow"""
 
 from .main import main
 

@@ -1,8 +1,17 @@
 # Changelog
 
-All notable changes to USB Desktop Extend will be documented in this file.
+All notable changes to Simulflow will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
+
+## [2.0.0] - 2026-09-05
+
+### Changed
+
+- **Rebranded to Simulflow** — the project has been renamed from USB Desktop Extend to Simulflow (a Dune-inspired name: multiple data streams flowing into one coherent display). All UI strings, config paths, CLI commands, and packaging references now use `simulflow`.
+- **Config path** — credentials have moved to `~/.config/simulflow/config.json`; existing `~/.config/usb-desktop-extend/config.json` is automatically migrated on first launch.
+- **AppImage** — output is now `dist/simulflow-x86_64.AppImage`; the icon is the new Simulflow branding (green merge streams on dark background).
+- **Show/hide password toggle** — the saved RDP password field now includes an eye icon to reveal or mask the password in-app.
 
 ## [1.1.0] - 2026-09-04
 
@@ -11,7 +20,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Wireless mode** — Connect over Android 11+ wireless debugging (no USB cable). New USB/Wireless radio selector, an in-app wireless pairing panel with a full setup tooltip, and automatic `adb pair` / `adb connect` / `adb disconnect`.
 - **QR code pairing** — Wireless pairing is now QR-first: the app generates a `WIFI:T:ADB;...` QR code (new `qrcode`/`Pillow`/`zeroconf` deps), the tablet scans it via "Pair device with QR code", and the app discovers the tablet over mDNS and pairs automatically — no IP/port/code typing. Manual entry is kept behind a collapsible "Manual entry" section for networks where mDNS is blocked.
 - **GNOME 49 warning** — Detects the GNOME version and warns in the log and footer that the Microsoft Windows App RDP client cannot connect on GNOME 49+ (RDSTLS security change), recommending aRDP or Remmina.
-- **AppImage build** — New `build-appimage.sh` produces a self-contained `dist/usb-desktop-extend-x86_64.AppImage` (with explicit `AppRun`) that runs anywhere via libfuse or `--appimage-extract-and-run`.
+- **AppImage build** — New `build-appimage.sh` produces a self-contained `dist/simulflow-x86_64.AppImage` (with explicit `AppRun`) that runs anywhere via libfuse or `--appimage-extract-and-run`.
 
 ### Changed
 
@@ -79,9 +88,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - Log area — describes what the log shows
   - Start/Stop buttons — detailed step-by-step descriptions
 - **Footer status bar** showing connection state
-- **Binary packaging** via PyInstaller (`dist/usb-desktop-extend`)
-- **Installation** via `pip install -e .` with `usb-desktop-extend` command
-- **Desktop entry** (`usb-desktop-extend.desktop`) for Linux app launchers
+- **Binary packaging** via PyInstaller (`dist/simulflow`)
+- **Installation** via `pip install -e .` with `simulflow` command
+- **Desktop entry** (`simulflow.desktop`) for Linux app launchers
 - **Documentation** — README, CHANGELOG, AGENTS.md
 
 ### Fixed

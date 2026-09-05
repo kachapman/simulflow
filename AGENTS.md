@@ -4,15 +4,15 @@ This document describes how AI coding agents should work with this codebase.
 
 ## Project Overview
 
-**USB Desktop Extend** is a Python/PyQt6 GUI application that turns an Android tablet into a second monitor over USB. It wraps GNOME Remote Desktop's extend mode + ADB reverse tunneling into a one-click interface.
+**Simulflow** is a Python/PyQt6 GUI application that turns an Android tablet into a second monitor over USB. It wraps GNOME Remote Desktop's extend mode + ADB reverse tunneling into a one-click interface.
 
 ## Quick Reference
 
 | Command | Purpose |
 |---------|---------|
-| `python -m usb_desktop_extend` | Run the app directly |
+| `python -m simulflow` | Run the app directly |
 | `pip install -e .` | Install in development mode |
-| `usb-desktop-extend` | Run the installed command |
+| `simulflow` | Run the installed command |
 
 ## Architecture
 
@@ -70,7 +70,7 @@ This document describes how AI coding agents should work with this codebase.
 ### Building the binary
 
 ```bash
-pyinstaller --onefile --windowed --name usb-desktop-extend \
+pyinstaller --onefile --windowed --name simulflow \
   --icon=assets/icon.png --add-data "assets/icon.png:assets" \
   run_app.py
 ```
@@ -79,7 +79,7 @@ pyinstaller --onefile --windowed --name usb-desktop-extend \
 
 No test suite yet. Manual testing:
 
-1. Run `python -m usb_desktop_extend`
+1. Run `python -m simulflow`
 2. Verify sudo prompt works
 3. Verify GUI renders with terminal theme
 4. Connect a tablet and verify the 4-step flow
@@ -88,8 +88,8 @@ No test suite yet. Manual testing:
 ## File Map
 
 ```
-usb_desktop_extend/
-├── __init__.py      # __version__ = "1.0.0"
+simulflow/
+├── __init__.py      # __version__ = "2.0.0"
 ├── __main__.py      # python -m entry point
 ├── main.py          # sudo prompt → MainWindow
 ├── app.py           # GUI + theme + tray

@@ -1,4 +1,4 @@
-"""Setup script for USB Desktop Extend."""
+"""Setup script for Simulflow."""
 
 from setuptools import setup, find_packages
 from pathlib import Path
@@ -7,12 +7,12 @@ here = Path(__file__).parent.resolve()
 long_description = (here / "README.md").read_text(encoding="utf-8")
 
 setup(
-    name="usb-desktop-extend",
-    version="1.1.0",
-    description="Turn your Android tablet into a second monitor over USB",
+    name="simulflow",
+    version="2.0.0",
+    description="Linux Desktop Extender - turn your Android tablet into a second monitor over USB",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/kachapman/linux-usb-desktop-extend",
+    url="https://github.com/kachapman/simulflow",
     author="kachapman",
     license="MIT",
     packages=find_packages(),
@@ -24,14 +24,14 @@ setup(
     ],
     entry_points={
         "console_scripts": [
-            "usb-desktop-extend=usb_desktop_extend.main:main",
+            "simulflow=simulflow.main:main",
         ],
     },
     package_data={
         "": ["assets/*.png"],
     },
     data_files=[
-        ("share/applications", ["usb-desktop-extend.desktop"]),
+        ("share/applications", ["simulflow.desktop"]),
     ],
     python_requires=">=3.10",
     classifiers=[

@@ -1,10 +1,10 @@
 [Desktop Entry]
 Type=Application
-Name=USB Desktop Extend
-GenericName=USB Desktop Extend
+Name=Simulflow
+GenericName=Linux Desktop Extender
 Comment=Turn your Android tablet into a second monitor over USB
-Exec=usb-desktop-extend
-Icon=usb-desktop-extend
+Exec=simulflow
+Icon=simulflow
 Terminal=false
 Categories=Utility;
 Keywords=tablet;monitor;extend;display;adb;rdp;

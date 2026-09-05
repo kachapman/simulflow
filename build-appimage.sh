@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Build a self-contained AppImage from source.
 #
-# Produces: dist/usb-desktop-extend-x86_64.AppImage
+# Produces: dist/simulflow-x86_64.AppImage
 #
 # Requires: python3, pip (with PyInstaller), and the build-appimage host tools.
 # No FUSE needed to build (appimagetool runs with --appimage-extract-and-run).
@@ -11,7 +11,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-APP_NAME="usb-desktop-extend"
+APP_NAME="simulflow"
 ARCH="x86_64"
 BUILD_DIR="build/AppDir"
 DIST_DIR="dist"
@@ -20,7 +20,7 @@ CACHE_DIR=".cache/appimagetool"
 APPIMAGE_TOOL_URL="https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-${ARCH}.AppImage"
 
 echo "==> Building binary with PyInstaller..."
-python -m PyInstaller --noconfirm usb-desktop-extend.spec
+python -m PyInstaller --noconfirm simulflow.spec
 
 echo "==> Preparing AppDir..."
 rm -rf "$BUILD_DIR"
@@ -38,8 +38,8 @@ chmod +x "$BUILD_DIR/AppRun"
 cat > "$BUILD_DIR/$APP_NAME.desktop" <<EOF
 [Desktop Entry]
 Type=Application
-Name=USB Desktop Extend
-GenericName=USB Desktop Extend
+Name=Simulflow
+GenericName=Linux Desktop Extender
 Comment=Turn your Android tablet into a second monitor over USB
 Exec=$APP_NAME
 Icon=$APP_NAME
@@ -49,6 +49,8 @@ Keywords=tablet;monitor;extend;display;adb;rdp;
 EOF
 
 cp "assets/icon.png" "$BUILD_DIR/$APP_NAME.png"
+mkdir -p "$BUILD_DIR/usr/share/icons/hicolor/512x512/apps"
+cp "assets/icon.png" "$BUILD_DIR/usr/share/icons/hicolor/512x512/apps/$APP_NAME.png"
 
 echo "==> Fetching appimagetool..."
 mkdir -p "$CACHE_DIR"

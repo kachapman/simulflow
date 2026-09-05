@@ -1,8 +1,10 @@
-# USB Desktop Extend
+# Simulflow
 
 Turn your Android tablet into a second monitor over USB — no WiFi, no dummy adapters, no extra hardware.
 
 Uses GNOME Remote Desktop's extend mode + ADB reverse tunneling to create a virtual second display that you can drag windows to, just like a real monitor.
+
+> **What's in a name?** *Simulflow* is inspired by *Dune*'s spice-fueled prescience — the idea of seeing and acting on multiple streams at once. Here, your laptop's desktop flows into the tablet as a second screen, letting you interact with two displays simultaneously.
 
 ![Terminal Theme](https://img.shields.io/badge/theme-terminal%20green-black) ![Python](https://img.shields.io/badge/python-3.10+-blue) ![License](https://img.shields.io/badge/license-MIT-green)
 
@@ -61,29 +63,29 @@ sudo dnf install -y gnome-remote-desktop
 ### Option 1: pip install (recommended)
 
 ```bash
-git clone https://github.com/kachapman/linux-usb-desktop-extend.git
-cd linux-usb-desktop-extend
+git clone https://github.com/kachapman/simulflow.git
+cd simulflow
 pip install -e .
 ```
 
-This installs the `usb-desktop-extend` command globally.
+This installs the `simulflow` command globally.
 
 ### Option 2: Run directly
 
 ```bash
-python -m usb_desktop_extend
+python -m simulflow
 ```
 
 ### Option 3: Pre-built binary
 
-Download `usb-desktop-extend` from [Releases](https://github.com/kachapman/linux-usb-desktop-extend/releases) and run it directly — no Python needed.
+Download `simulflow-x86_64.AppImage` from [Releases](https://github.com/kachapman/simulflow/releases) and run it directly — no Python needed.
 
 ## Usage
 
 1. Connect your tablet via USB
 2. Run the app:
    ```bash
-   usb-desktop-extend
+   simulflow
    ```
 3. Enter your sudo password when prompted
 4. Enter your desired RDP username and password in the app (these are the credentials your tablet will use to connect)
@@ -98,7 +100,7 @@ Download `usb-desktop-extend` from [Releases](https://github.com/kachapman/linux
 
 The credentials you enter in the app are set as your GNOME RDP credentials and used by the tablet to authenticate.
 
-Credentials are saved to `~/.config/usb-desktop-extend/config.json` after the first successful connection.
+Credentials are saved to `~/.config/simulflow/config.json` after the first successful connection.
 
 > **Note:** The app automatically enables GNOME Desktop Sharing via `grdctl rdp enable`. You can also manually configure sharing in **GNOME Settings → Sharing**, but this is not required — the app handles it for you.
 
@@ -142,12 +144,12 @@ Click **STOP CONNECTION** in the app. This removes the tunnel, disables RDP, and
 
 ```bash
 pip install pyinstaller
-pyinstaller --onefile --windowed --name usb-desktop-extend \
+pyinstaller --onefile --windowed --name simulflow \
   --icon=assets/icon.png --add-data "assets/icon.png:assets" \
   run_app.py
 ```
 
-Output: `dist/usb-desktop-extend` (~62 MB)
+Output: `dist/simulflow` (~62 MB)
 
 ### AppImage
 
@@ -157,15 +159,15 @@ You can also build a single-file AppImage that runs anywhere without installatio
 ./build-appimage.sh
 ```
 
-Output: `dist/usb-desktop-extend-x86_64.AppImage`
+Output: `dist/simulflow-x86_64.AppImage`
 
 **Prerequisites:** `python3`, `pip` with `PyInstaller`, and `curl`. No FUSE is required to *build* (the script runs appimagetool in extract-and-run mode).
 
 **Run the AppImage:**
 
 ```bash
-chmod +x dist/usb-desktop-extend-x86_64.AppImage
-./dist/usb-desktop-extend-x86_64.AppImage
+chmod +x dist/simulflow-x86_64.AppImage
+./dist/simulflow-x86_64.AppImage
 ```
 
 On Fedora you may need `libfuse2` installed to run AppImages:
@@ -177,7 +179,7 @@ sudo dnf install libfuse2
 If FUSE is unavailable, run with `--appimage-extract-and-run`:
 
 ```bash
-./dist/usb-desktop-extend-x86_64.AppImage --appimage-extract-and-run
+./dist/simulflow-x86_64.AppImage --appimage-extract-and-run
 ```
 
 > **Note:** The AppImage bundles the PyQt6 GUI but still calls host-system tools (`adb`, `grdctl`, `gsettings`, etc.) from your `PATH` at runtime, so all functionality is unchanged.
@@ -185,21 +187,20 @@ If FUSE is unavailable, run with `--appimage-extract-and-run`:
 ## Project Structure
 
 ```
-linux-usb-desktop-extend/
-├── usb_desktop_extend/
+simulflow/
+├── assets/
+│   └── icon.png             # App icon
+├── simulflow/
 │   ├── __init__.py          # Package metadata
 │   ├── __main__.py          # python -m entry point
 │   ├── main.py              # CLI entry point with sudo prompt
 │   ├── app.py               # PyQt6 GUI (terminal theme)
 │   ├── backend.py           # Connection logic (ADB/RDP/GNOME)
 │   └── log_handler.py       # Logging → GUI signal bridge
-├── assets/
-│   └── icon.png             # App icon
 ├── run_app.py               # Standalone entry point for PyInstaller
 ├── build-appimage.sh        # Build a standalone AppImage
 ├── setup.py                 # pip install support
-├── requirements.txt         # Dependencies
-├── usb-desktop-extend.desktop  # Linux desktop entry
+├── simulflow.desktop        # Linux desktop entry
 ├── CHANGELOG.md
 └── README.md
 ```

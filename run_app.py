@@ -1,20 +1,8 @@
 """Standalone entry point for PyInstaller."""
 
 import sys
-import os
 import subprocess
-from pathlib import Path
 
-# Add assets directory to path for PyInstaller
-if getattr(sys, 'frozen', False):
-    # Running as compiled binary
-    _base_dir = Path(sys._MEIPASS)
-else:
-    _base_dir = Path(__file__).parent.parent
-
-ASSETS_DIR = _base_dir / "assets"
-
-from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QApplication,
     QInputDialog,
@@ -22,7 +10,7 @@ from PyQt6.QtWidgets import (
     QMessageBox,
 )
 
-from usb_desktop_extend.app import MainWindow
+from simulflow.app import MainWindow
 
 
 def verify_sudo(password: str) -> bool:
@@ -46,7 +34,7 @@ def main():
     # Prompt for sudo password
     sudo_password, ok = QInputDialog.getText(
         None,
-        "USB Desktop Extend",
+        "Simulflow",
         "Enter your sudo password\n(needed to disable system Remote Login):",
         QLineEdit.EchoMode.Password,
     )
@@ -57,7 +45,7 @@ def main():
     if not verify_sudo(sudo_password):
         QMessageBox.critical(
             None,
-            "USB Desktop Extend",
+            "Simulflow",
             "Invalid sudo password. Please try again.",
         )
         sys.exit(1)

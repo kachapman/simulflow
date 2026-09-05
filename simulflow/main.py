@@ -1,4 +1,4 @@
-"""USB Desktop Extend - Entry point."""
+"""Simulflow - Entry point."""
 
 import atexit
 import signal
@@ -62,7 +62,7 @@ def main():
     # Prompt for sudo password
     sudo_password, ok = QInputDialog.getText(
         None,
-        "USB Desktop Extend",
+        "Simulflow",
         "Enter your sudo password\n(needed to disable system Remote Login):",
         QLineEdit.EchoMode.Password,
     )
@@ -73,7 +73,7 @@ def main():
     if not verify_sudo(sudo_password):
         QMessageBox.critical(
             None,
-            "USB Desktop Extend",
+            "Simulflow",
             "Invalid sudo password. Please try again.",
         )
         sys.exit(1)
