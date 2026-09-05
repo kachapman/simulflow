@@ -500,7 +500,9 @@ class MainWindow(QMainWindow):
         creds_header.addWidget(creds_title)
         creds_header.addWidget(InfoIcon(
             "RDP credentials used by the tablet to connect.\n"
-            "Saved to ~/.config/usb-desktop-extend/config.json"
+            "Edit them here and click START CONNECTION to update.\n"
+            "Stored in ~/.config/usb-desktop-extend/config.json — you\n"
+            "can also open that file directly to change them."
         ))
         creds_header.addStretch()
         creds_layout.addLayout(creds_header)
@@ -522,6 +524,11 @@ class MainWindow(QMainWindow):
         self._password_input.setPlaceholderText("RDP password")
         self._password_input.setEchoMode(QLineEdit.EchoMode.Password)
         pass_row.addWidget(self._password_input)
+        self._pw_show_btn = QPushButton("SHOW")
+        self._pw_show_btn.setFixedWidth(56)
+        self._pw_show_btn.setToolTip("Reveal or hide the saved password")
+        self._pw_show_btn.clicked.connect(self._toggle_password_visibility)
+        pass_row.addWidget(self._pw_show_btn)
         creds_layout.addLayout(pass_row)
 
         layout.addWidget(creds_frame)
@@ -716,6 +723,7 @@ class MainWindow(QMainWindow):
         self._disconnect_btn.setEnabled(connected)
         self._username_input.setEnabled(not connected)
         self._password_input.setEnabled(not connected)
+        self._pw_show_btn.setEnabled(not connected)
         self._usb_radio.setEnabled(not connected)
         self._wireless_radio.setEnabled(not connected)
         self._wl_ip_input.setEnabled(not connected)
@@ -730,6 +738,13 @@ class MainWindow(QMainWindow):
         self._manual_toggle.setText(
             "\u25b4\u2500  HIDE MANUAL ENTRY" if visible else "\u25be\u2500  MANUAL ENTRY (OPTIONAL)"
         )
+
+    def _toggle_password_visibility(self):
+        visible = self._password_input.echoMode() == QLineEdit.EchoMode.Password
+        self._password_input.setEchoMode(
+            QLineEdit.EchoMode.Normal if visible else QLineEdit.EchoMode.Password
+        )
+        self._pw_show_btn.setText("HIDE" if visible else "SHOW")
 
     @pyqtSlot(str, str)
     def _on_qr_data_ready(self, qr_text: str, service_name: str):
